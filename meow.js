@@ -49,7 +49,6 @@ loader = new PIXI.AssetLoader(assetsToLoader);
 // use callback
 loader.onComplete = init;
 
-
 var width = window.innerWidth;
 var height = window.innerHeight;
 
@@ -78,9 +77,7 @@ var sepiaFilter = new PIXI.SepiaFilter();
 var pixelFilter = new PIXI.PixelateFilter();
 pixelFilter.size = new PIXI.Point(1, 1);
 
-var rgbSplitterFilter = new PIXI.RGBSplitFilter();
-
-var filters = [blurFilter, sepiaFilter, rgbSplitterFilter];
+var filters = [blurFilter, sepiaFilter];
 
 var grayFilter = new PIXI.GrayFilter();
 
@@ -119,6 +116,10 @@ function addCat(textures, xpos, ypos, container){
     cat.scale.x = cat.scale.y = 0.1 + Math.random() / 1.5;
     cat.animationSpeed = 0.1 -cat.speed / 10;
     cat.mask = graphics;
+    cat.interactive = true;
+    cat.click = function() {
+        this.tint = 0xff0000;
+    }
 
     if (cat.position.x < width / 2) {
         cat.speed *= -1;
@@ -148,12 +149,12 @@ function init() {
     grass.mask = graphics;
     stage.addChild(grass);
 
-    var myLargeFont = {
+    myLargeFont = {
         font: "40px Megrim",
         fill: "white",
         align: "left"
     };
-    var myFont = {
+    myFont = {
         font: "25px Megrim",
         fill: "white",
         align: "left"
@@ -177,7 +178,7 @@ function init() {
     welcome_text3.alpha = 0;
     stage.addChild( welcome_text3 );
     
-    welcome_text4 = new PIXI.Text("You get cat points for doing it well, \nand negative cat points\nfor collateral damage.\n\nClick to begin.", myFont);
+    welcome_text4 = new PIXI.Text("You get cat points for doing it well, \nand negative cat points\nfor collateral damage.\n\nReady?", myFont);
     welcome_text4.position.x = 20;
     welcome_text4.position.y = 280;
     welcome_text4.alpha = 0;
@@ -229,19 +230,21 @@ function welcomeText4() {
     requestAnimationFrame( welcomeText4 );
     if (count <= L) {
         welcome_text4.alpha = count / L;
-        count += 1
+        count += 1;
     } else if (count <= 2 * L){
-        welcome_text1.alpha = (2 * L - count) / L;
-        welcome_text2.alpha = (2 * L - count) / L;
-        welcome_text3.alpha = (2 * L - count) / L;
-        welcome_text4.alpha = (2 * L - count) / L;
+        count += 1;
+    } else if (count <= 3 * L){
+        welcome_text1.alpha = (3 * L - count) / L;
+        welcome_text2.alpha = (3 * L - count) / L;
+        welcome_text3.alpha = (3 * L - count) / L;
+        welcome_text4.alpha = (3 * L - count) / L;
         count += 1
-    } else if (count == 2 * L + 1) {
+    } else if (count == 3 * L + 1) {
         stage.removeChild(welcome_text1);
         stage.removeChild(welcome_text2);
         stage.removeChild(welcome_text3);
         stage.removeChild(welcome_text4);
-        count += 1
+        count += 1;
         init_game();
     } else {
         return;
@@ -250,6 +253,30 @@ function welcomeText4() {
 }
 
 function init_game() {
+
+    score_text = new PIXI.Text("Score: 000000", myFont);
+    score_text.position.x = 20;
+    score_text.position.y = 20;
+    score_text.alpha = 0.0;
+    stage.addChild(score_text);
+
+    time_text = new PIXI.Text("Time: ", myFont);
+    time_text.position.x = 20;
+    time_text.position.y = 60;
+    time_text.alpha = 0.0;
+    stage.addChild(time_text);
+
+    time_graphics = new PIXI.Graphics();
+    time_graphics.lineStyle(1, 0x555555);
+    time_graphics.drawRoundedRect(80, 65, 100, 20, 5);
+    stage.addChild(time_graphics);
+
+    time_left = new PIXI.Graphics();
+    time_left.lineStyle(0);
+    time_left.beginFill(0xFFFFFF, 0.7);
+    time_left.drawRoundedRect(81, 66, 98, 18, 5); 
+    time_left.endFill();
+    stage.addChild(time_left);
 
     walkTextures =  [];
     for (var i = 0; i < walkFrames.length; i++) {
@@ -264,8 +291,8 @@ function init_game() {
     }
 
     for (var i = 0; i < 10; i++){
-        addCat(walkTextures, Math.random() * width, Math.random() * height, catContainer);
-        addCat(runTextures, Math.random() * width, Math.random() * height, catContainer);
+        addCat(walkTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
+        addCat(runTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
     }
     
     stage.addChild(catContainer);
@@ -280,10 +307,16 @@ function init_game() {
     yarn.mask = graphics;
     yarn.interactive = true;
     yarn.total_clicks = 0;
+    yarn.total_score = 0;
+    yarn.max_points = 500;
+    yarn.points = yarn.max_points;
     yarn.click = function(data){
         if (!this.clicked_recently){
             this.clicked_recently = true;
             this.click_ticks = 100;
+            this.total_score += this.points;
+            score_text.setText("Points: " + format_points(this.total_score));
+            this.points = yarn.max_points;
             this.total_clicks += 1;
         }
     };
@@ -299,13 +332,42 @@ function init_game() {
 
     // start animating text
     requestAnimationFrame( animate );
+
+    ct = 0;
+
+    return;
+}
+
+function format_points( pts ){
+    var nZeros = 6 - String(pts).length
+    var rv = "";
+
+    for (var i = 0; i < nZeros; i++){
+        rv += "0"
+    }
+    rv += String(pts);
+    return rv;
 }
 
 function animate() {
 
     requestAnimationFrame( animate );
 
-    count += 0.1;
+    if (yarn.points < 0) {
+        game_end();
+    } else {
+        time_left.clear();
+        time_left.beginFill(0xFFFFFF, 0.7);
+        var time_bar_width = 98.0 * yarn.points / yarn.max_points;
+        time_left.drawRoundedRect(81, 66, time_bar_width, 18, 5); 
+    }
+
+    ct += 0.1;
+
+    if (score_text.alpha < 1.0) {
+        score_text.alpha = Math.min(ct / 10.0, 1.0);
+        time_text.alpha = Math.min(ct / 10.0, 1.0);
+    } 
 
     for (var i = 0; i < catContainer.children.length; i++) {
       var cat = catContainer.children[i];
@@ -333,13 +395,16 @@ function animate() {
         pixelFilter.size.x = pixelFilter.size.y = 10 - yarn.click_ticks / 10;
         yarn.click_ticks -= 1;
         yarn.speed -= 4 / 100.; 
+    } else {
+        yarn.points -= 1;
     }
+
     if (yarn.click_ticks < 0 & yarn.clicked_recently) { 
         yarn.clicked_recently = false;
         pixelFilter.size.x = pixelFilter.size.y = 1;
         yarn.angle = Math.PI * Math.random();
-        yarn.speed = 4 + yarn.total_clicks / 10;
-        yarn.scale.x = yarn.scale.y = 0.5 - 0.02 * yarn.total_clicks;
+        yarn.speed = 4 + yarn.total_clicks / 8;
+        yarn.scale.x = yarn.scale.y = 0.5 - 0.015 * yarn.total_clicks;
         yarn.position.x = Math.random() * width;
         yarn.position.y = Math.random() * height;
     }
@@ -347,9 +412,14 @@ function animate() {
     yarn.position.x += yarn.speed * Math.cos(yarn.angle);
     yarn.position.y += yarn.speed * Math.sin(yarn.angle);
 
-    grayFilter.gray = Math.sin(count);
+    grayFilter.gray = Math.sin(ct);
 
     // render the stage   
     renderer.render(stage);
 
+}
+
+function game_end(){
+    console.log("GAME OVER");
+    return;
 }
