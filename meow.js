@@ -1,7 +1,6 @@
 var PIXI = require('pixi.js');   
 var _ = require('underscore');
 var howler = require('howler');
-var fonts = require('google-fonts');
 
 WebFontConfig = {
   google: {
@@ -89,7 +88,7 @@ var graphics = new PIXI.Graphics();
 
 // draw a circle
 graphics.lineStyle(1);
-graphics.beginFill(0xFFFF0B, 0.5);
+graphics.beginFill(0xFFFFFF, 0.5);
 graphics.drawCircle(470, 200, 100);
 graphics.endFill();
 
@@ -153,6 +152,11 @@ function init() {
         font: "40px Megrim",
         fill: "white",
         align: "left"
+    };
+    myLargeCenteredFont = {
+        font: "40px Megrim",
+        fill: "white",
+        align: "center"
     };
     myFont = {
         font: "25px Megrim",
@@ -254,6 +258,8 @@ function welcomeText4() {
 
 function init_game() {
 
+    game_over = false;
+
     score_text = new PIXI.Text("Score: 000000", myFont);
     score_text.position.x = 20;
     score_text.position.y = 20;
@@ -290,7 +296,7 @@ function init_game() {
         runTextures.push(texture);
     }
 
-    for (var i = 0; i < 10; i++){
+    for (var i = 0; i < 8; i++){
         addCat(walkTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
         addCat(runTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
     }
@@ -308,9 +314,9 @@ function init_game() {
     yarn.interactive = true;
     yarn.total_clicks = 0;
     yarn.total_score = 0;
-    yarn.max_points = 500;
+    yarn.max_points = 750;
     yarn.points = yarn.max_points;
-    yarn.click = function(data){
+    yarn.mousedown = function(data){
         if (!this.clicked_recently){
             this.clicked_recently = true;
             this.click_ticks = 100;
@@ -322,15 +328,8 @@ function init_game() {
     };
     stage.addChild(yarn);
 
-    // add another cat every 2 seconds
-    setInterval(function() { 
-        var textures = (Math.random() < 0.5 ? walkTextures : runTextures)
-        addCat(textures, (Math.random() < 0.5 ? -100 : width + 100), Math.random() * height, catContainer);
-    }, 2000);
-
     renderer.render(stage);
 
-    // start animating text
     requestAnimationFrame( animate );
 
     ct = 0;
@@ -353,73 +352,125 @@ function animate() {
 
     requestAnimationFrame( animate );
 
-    if (yarn.points < 0) {
-        game_end();
-    } else {
-        time_left.clear();
-        time_left.beginFill(0xFFFFFF, 0.7);
-        var time_bar_width = 98.0 * yarn.points / yarn.max_points;
-        time_left.drawRoundedRect(81, 66, time_bar_width, 18, 5); 
+    if (!game_over){
+    
+        if (yarn.points < 0) {
+            game_over = true;
+            stage.filters = [ invertFilter ];
+            if (yarn.total_score < 1000) {
+              var assessment = "horrifying";
+            } else if (yarn.total_score < 3000){
+              var assessment = "not great, tbh";
+            } else if (yarn.total_score < 5000){
+              var assessment = "passable. ok you did fine!";
+            } else if (yarn.total_score < 7000){
+              var assessment = "good. no, really I mean it.";
+            } else if (yarn.total_score < 9000){
+              var assessment = "excellent. meow.";
+            } else if (yarn.total_score < 11000){
+              var assessment = "whoa how did you even.";
+            } else {
+              var assessment = ":-0";
+            }
+            game_over_text = new PIXI.Text("Game over :(.\nYou got " + yarn.total_score + " points,\nwhich is " 
+                    + assessment + ".\nPlay again?", myLargeCenteredFont);
+            game_over_text.position.x = width / 4;
+            game_over_text.position.y = height / 4;
+            game_over_text.interactive = true;
+            game_over_text.click = function(){
+                game_over = false;
+                score_text.setText("Points: " + format_points(0));
+                stage.filters = undefined;
+                for (var i = 0; i < catContainer.children.length; i++) {
+                  var cat = catContainer.children[i];
+                  cat.play();
+                }
+                stage.removeChild(game_over_text);
+                yarn.scale.x = yarn.scale.y = 0.5;
+                yarn.angle = Math.PI * Math.random();
+                yarn.position.x = Math.random() * width;
+                yarn.position.y = Math.random() * height;
+                yarn.speed = 4; 
+                yarn.total_clicks = 0;
+                yarn.total_score = 0;
+                yarn.points = yarn.max_points;
+            };
+            stage.addChild(game_over_text);
+            
+            // stop the cats
+            for (var i = 0; i < catContainer.children.length; i++) {
+              var cat = catContainer.children[i];
+              cat.stop();
+            }
+    
+        } else {
+            time_left.clear();
+            time_left.beginFill(0xFFFFFF, 0.7);
+            var time_bar_width = 98.0 * yarn.points / yarn.max_points;
+            time_left.drawRoundedRect(81, 66, time_bar_width, 18, 5); 
+        }
+    
+        ct += 0.1;
+    
+        if (score_text.alpha < 1.0) {
+            score_text.alpha = Math.min(ct / 10.0, 1.0);
+            time_text.alpha = Math.min(ct / 10.0, 1.0);
+        } 
+    
+        var n_removed = 0;
+        for (var i = 0; i < catContainer.children.length; i++) {
+          var cat = catContainer.children[i];
+          cat.position.x += cat.speed;
+          if (cat.position.x < -200 || cat.position.x > width + 200) {
+              catContainer.removeChild(cat);
+              n_removed += 1;
+          }
+        }
+        for (var i = 0; i < n_removed; i++){
+            if (Math.random() < 0.5){
+                addCat(walkTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
+            } else {
+                addCat(runTextures, Math.random() < 0.5 ? -100: width + 100, Math.random() * height, catContainer);
+            }
+        }
+    
+        if (yarn.position.x < 0){ 
+            yarn.position.x = 0;
+            yarn.angle = Math.PI - yarn.angle;
+        } else if (yarn.position.y < 0) {
+            yarn.position.y = 0;
+            yarn.angle = 2 * Math.PI - yarn.angle;
+        } else if (yarn.position.x > 670) {
+            yarn.position.x = 670;
+            yarn.angle = Math.PI - yarn.angle;
+        } else if (yarn.position.y > 400){
+            yarn.position.y = 400;
+            yarn.angle = -yarn.angle;
+        }
+    
+        if (yarn.clicked_recently) {
+            pixelFilter.size.x = pixelFilter.size.y = 10 - yarn.click_ticks / 10;
+            yarn.click_ticks -= 1;
+            yarn.speed -= 4 / 100.; 
+        } else {
+            yarn.points -= 1;
+        }
+    
+        if (yarn.click_ticks < 0 & yarn.clicked_recently) { 
+            yarn.clicked_recently = false;
+            pixelFilter.size.x = pixelFilter.size.y = 1;
+            yarn.angle = Math.PI * Math.random();
+            yarn.speed = 4 + yarn.total_clicks / 8;
+            yarn.scale.x = yarn.scale.y = 0.5 - 0.015 * yarn.total_clicks;
+            yarn.position.x = Math.random() * width;
+            yarn.position.y = Math.random() * height;
+        }
+    
+        yarn.position.x += yarn.speed * Math.cos(yarn.angle);
+        yarn.position.y += yarn.speed * Math.sin(yarn.angle);
+    
+        grayFilter.gray = Math.sin(ct);
+    
     }
-
-    ct += 0.1;
-
-    if (score_text.alpha < 1.0) {
-        score_text.alpha = Math.min(ct / 10.0, 1.0);
-        time_text.alpha = Math.min(ct / 10.0, 1.0);
-    } 
-
-    for (var i = 0; i < catContainer.children.length; i++) {
-      var cat = catContainer.children[i];
-      cat.position.x += cat.speed;
-      if (cat.position.x < -200 || cat.position.x > width + 200) {
-          stage.removeChild(cat)
-      }
-    }
-
-    if (yarn.position.x < 0){ 
-        yarn.position.x = 0;
-        yarn.angle = Math.PI - yarn.angle;
-    } else if (yarn.position.y < 0) {
-        yarn.position.y = 0;
-        yarn.angle = 2 * Math.PI - yarn.angle;
-    } else if (yarn.position.x > 670) {
-        yarn.position.x = 670;
-        yarn.angle = Math.PI - yarn.angle;
-    } else if (yarn.position.y > 400){
-        yarn.position.y = 400;
-        yarn.angle = -yarn.angle;
-    }
-
-    if (yarn.clicked_recently) {
-        pixelFilter.size.x = pixelFilter.size.y = 10 - yarn.click_ticks / 10;
-        yarn.click_ticks -= 1;
-        yarn.speed -= 4 / 100.; 
-    } else {
-        yarn.points -= 1;
-    }
-
-    if (yarn.click_ticks < 0 & yarn.clicked_recently) { 
-        yarn.clicked_recently = false;
-        pixelFilter.size.x = pixelFilter.size.y = 1;
-        yarn.angle = Math.PI * Math.random();
-        yarn.speed = 4 + yarn.total_clicks / 8;
-        yarn.scale.x = yarn.scale.y = 0.5 - 0.015 * yarn.total_clicks;
-        yarn.position.x = Math.random() * width;
-        yarn.position.y = Math.random() * height;
-    }
-
-    yarn.position.x += yarn.speed * Math.cos(yarn.angle);
-    yarn.position.y += yarn.speed * Math.sin(yarn.angle);
-
-    grayFilter.gray = Math.sin(ct);
-
-    // render the stage   
     renderer.render(stage);
-
-}
-
-function game_end(){
-    console.log("GAME OVER");
-    return;
 }
